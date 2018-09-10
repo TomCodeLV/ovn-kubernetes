@@ -82,7 +82,7 @@ func normalize (data interface{}) interface{} {
 				m := map[string]interface{}{}
 				// we convert list type map to real map, items always are pairs
 				for _, val := range a[1].([]interface{}) {
-					m[val.([]interface{})[0].(string)] = val
+					m[val.([]interface{})[0].(string)] = normalize(val)
 				}
 				return m
 			}
@@ -92,6 +92,9 @@ func normalize (data interface{}) interface{} {
 			m := map[string]interface{}{}
 			m[a[1].(string)] = a[1]
 			return m
+		} else {
+			// we have a pair, key is stored previously in map
+			return a[1]
 		}
 	default:
 		return data

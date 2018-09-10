@@ -15,10 +15,10 @@
 			"revision": ""
 		},
 		{
-			"checksumSHA1": "tN70uoQB5WKbZxjYc+PXX0DxbDc=",
+			"checksumSHA1": "Su+GZ/kpkjFt9wQQEtNnbKS6qYQ=",
 			"path": "github.com/TomCodeLV/OVSDB-golang-lib/pkg/dbcache",
-			"revision": "23867f092dffa210917a47445e61341afc7d3d29",
-			"revisionTime": "2018-08-22T13:34:35Z"
+			"revision": "f69c8e224bd7e0ea389ded4090837d350ac28b4a",
+			"revisionTime": "2018-09-10T12:38:19Z"
 		},
 		{
 			"checksumSHA1": "tmIvnP7/X4ucHtUEcyIF2DOpep8=",

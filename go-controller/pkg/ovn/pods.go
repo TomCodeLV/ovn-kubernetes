@@ -9,7 +9,7 @@ import (
 	"github.com/sirupsen/logrus"
 	kapi "k8s.io/api/core/v1"
 )
- 
+
 func (oc *Controller) syncPods(pods []interface{}) {
 	// get the list of logical switch ports (equivalent to pods)
 	expectedLogicalPorts := make(map[string]bool)
@@ -23,16 +23,20 @@ func (oc *Controller) syncPods(pods []interface{}) {
 		expectedLogicalPorts[logicalPort] = true
 	}
 
-	// get the list of logical ports from OVN
-	output, stderr, err := util.RunOVNNbctlHA("--data=bare", "--no-heading",
-		"--columns=name", "find", "logical_switch_port", "external_ids:pod=true")
-	if err != nil {
-		logrus.Errorf("Error in obtaining list of logical ports, "+
-			"stderr: %q, err: %v",
-			stderr, err)
-		return
+	var existingLogicalPorts []string
+	ports := oc.ovnNbCache.GetMap("Logical_Switch_Port", "uuid")
+	for _, port := range ports {
+		if externalIds, ok := port.(map[string]interface{})["external_ids"]; ok {
+			if externalIds != nil {
+				if pod, ok := externalIds.(map[string]interface{})["pod"]; ok {
+					if pod == "true" {
+						existingLogicalPorts = append(existingLogicalPorts, port.(map[string]interface{})["name"].(string))
+					}
+				}
+			}
+		}
 	}
-	existingLogicalPorts := strings.Fields(output)
+
 	for _, existingPort := range existingLogicalPorts {
 		if _, ok := expectedLogicalPorts[existingPort]; !ok {
 			// not found, delete this logical port

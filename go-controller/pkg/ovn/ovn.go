@@ -1,15 +1,19 @@
 package ovn
 
 import (
+	"github.com/TomCodeLV/OVSDB-golang-lib/pkg/dbcache"
+	"github.com/TomCodeLV/OVSDB-golang-lib/pkg/ovsdb"
+	"github.com/openvswitch/ovn-kubernetes/go-controller/pkg/config"
 	"github.com/openvswitch/ovn-kubernetes/go-controller/pkg/factory"
 	"github.com/openvswitch/ovn-kubernetes/go-controller/pkg/kube"
-	util "github.com/openvswitch/ovn-kubernetes/go-controller/pkg/util"
+	"github.com/openvswitch/ovn-kubernetes/go-controller/pkg/util"
 	"github.com/sirupsen/logrus"
 	kapi "k8s.io/api/core/v1"
 	kapisnetworking "k8s.io/api/networking/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"reflect"
+	"strings"
 	"sync"
 )
 
@@ -64,6 +68,9 @@ type Controller struct {
 
 	// supports port_group?
 	portGroupSupport bool
+
+	// NB database cache handle
+	ovnNbCache *dbcache.Cache
 }
 
 const (
@@ -73,6 +80,27 @@ const (
 	// UDP is the constant string for the string "UDP"
 	UDP = "UDP"
 )
+
+func DialNB() *dbcache.Cache {
+	addr := strings.SplitN(config.OvnNorth.ClientAuth.OvnAddressForClient, ":", 2)
+	db, err := ovsdb.Dial(addr[0], addr[1])
+	if err != nil {
+		logrus.Errorf("Error connecting to NB database: %v", err)
+	}
+
+	// initialize cache
+	nbCache, err := db.Cache(ovsdb.Cache{
+		Schema: "OVN_Northbound",
+		Tables: map[string][]string{
+			"Logical_Switch_Port": {"name", "external_ids"},
+		},
+	})
+	if err != nil {
+		logrus.Errorf("Error in NB cache: %v", err)
+	}
+
+	return nbCache
+}
 
 // NewOvnController creates a new OVN controller for creating logical network
 // infrastructure and policy
@@ -92,6 +120,7 @@ func NewOvnController(kubeClient kubernetes.Interface, wf *factory.WatchFactory,
 		gatewayCache:             make(map[string]string),
 		loadbalancerClusterCache: make(map[string]string),
 		nodePortEnable:           nodePortEnable,
+		ovnNbCache:               DialNB(),
 	}
 }
 
