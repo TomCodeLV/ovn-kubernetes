@@ -5,7 +5,8 @@ import (
 	"strings"
 	"time"
 
-	util "github.com/openvswitch/ovn-kubernetes/go-controller/pkg/util"
+	"github.com/TomCodeLV/OVSDB-golang-lib/pkg/dbtransaction"
+	"github.com/openvswitch/ovn-kubernetes/go-controller/pkg/util"
 	"github.com/sirupsen/logrus"
 	kapi "k8s.io/api/core/v1"
 )
@@ -24,7 +25,7 @@ func (oc *Controller) syncPods(pods []interface{}) {
 	}
 
 	var existingLogicalPorts []string
-	ports := oc.ovnNbCache.GetMap("Logical_Switch_Port", "uuid")
+	ports := oc.ovnNbCache.GetMap("Logical_Switch_Port", "name")
 	for _, port := range ports {
 		if externalIds, ok := port.(map[string]interface{})["external_ids"]; ok {
 			if externalIds != nil {
@@ -37,17 +38,32 @@ func (oc *Controller) syncPods(pods []interface{}) {
 		}
 	}
 
+	switches := oc.ovnNbCache.GetMap("Logical_Switch", "uuid")
 	for _, existingPort := range existingLogicalPorts {
 		if _, ok := expectedLogicalPorts[existingPort]; !ok {
 			// not found, delete this logical port
 			logrus.Infof("Stale logical port found: %s. This logical port will be deleted.", existingPort)
-			out, stderr, err := util.RunOVNNbctlHA("--if-exists", "lsp-del",
-				existingPort)
-			if err != nil {
-				logrus.Errorf("Error in deleting pod's logical port "+
-					"stdout: %q, stderr: %q err: %v",
-					out, stderr, err)
+
+			portID := ports[existingPort].(map[string]interface{})["uuid"].(string)
+
+			// find corresponding switch
+			var switchId string
+			for uuid, sw := range switches {
+				if _, ok := sw.(map[string]interface{})["ports"].(map[string]interface{})[portID]; ok {
+					switchId = uuid
+					break
+				}
 			}
+
+			oc.ovnNBDB.Transaction("OVN_Northbound").DeleteReferences(dbtransaction.DeleteReferences{
+				Table:           "Logical_Switch",
+				WhereId:         switchId,
+				ReferenceColumn: "ports",
+				DeleteIdsList:   []string{portID},
+				Wait:            true,
+				Cache:           oc.ovnNbCache,
+			}).Commit()
+
 			if !oc.portGroupSupport {
 				oc.deletePodAcls(existingPort)
 			}

@@ -69,6 +69,9 @@ type Controller struct {
 	// supports port_group?
 	portGroupSupport bool
 
+	// NB database handle
+	ovnNBDB *ovsdb.OVSDB
+
 	// NB database cache handle
 	ovnNbCache *dbcache.Cache
 }
@@ -81,7 +84,7 @@ const (
 	UDP = "UDP"
 )
 
-func DialNB() *dbcache.Cache {
+func DialNB() (*ovsdb.OVSDB, *dbcache.Cache) {
 	addr := strings.SplitN(config.OvnNorth.ClientAuth.OvnAddressForClient, ":", 2)
 	db, err := ovsdb.Dial(addr[0], addr[1])
 	if err != nil {
@@ -92,19 +95,24 @@ func DialNB() *dbcache.Cache {
 	nbCache, err := db.Cache(ovsdb.Cache{
 		Schema: "OVN_Northbound",
 		Tables: map[string][]string{
-			"Logical_Switch_Port": {"name", "external_ids"},
+			"Logical_Switch":      {"_uuid", "name", "ports"},
+			"Logical_Switch_Port": {"_uuid", "name", "external_ids"},
+		},
+		Indexes: map[string][]string{
+			"Logical_Switch_Port": {"name"},
 		},
 	})
 	if err != nil {
 		logrus.Errorf("Error in NB cache: %v", err)
 	}
 
-	return nbCache
+	return db, nbCache
 }
 
 // NewOvnController creates a new OVN controller for creating logical network
 // infrastructure and policy
 func NewOvnController(kubeClient kubernetes.Interface, wf *factory.WatchFactory, nodePortEnable bool) *Controller {
+	db, cache := DialNB()
 	return &Controller{
 		kube:                     &kube.Kube{KClient: kubeClient},
 		watchFactory:             wf,
@@ -120,7 +128,8 @@ func NewOvnController(kubeClient kubernetes.Interface, wf *factory.WatchFactory,
 		gatewayCache:             make(map[string]string),
 		loadbalancerClusterCache: make(map[string]string),
 		nodePortEnable:           nodePortEnable,
-		ovnNbCache:               DialNB(),
+		ovnNBDB:                  db,
+		ovnNbCache:               cache,
 	}
 }
 
