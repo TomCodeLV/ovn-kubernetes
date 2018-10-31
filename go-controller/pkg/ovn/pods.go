@@ -25,7 +25,7 @@ func (oc *Controller) syncPods(pods []interface{}) {
 	}
 
 	var existingLogicalPorts []string
-	ports := oc.ovnNbCache.GetMap("Logical_Switch_Port", "name")
+	ports := (oc.ovnNbCache).GetMap("Logical_Switch_Port", "name")
 	for _, port := range ports {
 		if externalIds, ok := port.(map[string]interface{})["external_ids"]; ok {
 			if externalIds != nil {
@@ -38,7 +38,7 @@ func (oc *Controller) syncPods(pods []interface{}) {
 		}
 	}
 
-	switches := oc.ovnNbCache.GetMap("Logical_Switch", "uuid")
+	switches := (oc.ovnNbCache).GetMap("Logical_Switch", "uuid")
 	for _, existingPort := range existingLogicalPorts {
 		if _, ok := expectedLogicalPorts[existingPort]; !ok {
 			// not found, delete this logical port
@@ -55,14 +55,17 @@ func (oc *Controller) syncPods(pods []interface{}) {
 				}
 			}
 
-			oc.ovnNBDB.Transaction("OVN_Northbound").DeleteReferences(dbtransaction.DeleteReferences{
-				Table:           "Logical_Switch",
-				WhereId:         switchId,
-				ReferenceColumn: "ports",
-				DeleteIdsList:   []string{portID},
-				Wait:            true,
-				Cache:           oc.ovnNbCache,
-			}).Commit()
+			var retry = true
+			for retry {
+				_, _, retry = (*oc.ovnNBDB).Transaction("OVN_Northbound").DeleteReferences(dbtransaction.DeleteReferences{
+					Table:           "Logical_Switch",
+					WhereId:         switchId,
+					ReferenceColumn: "ports",
+					DeleteIdsList:   []string{portID},
+					Wait:            true,
+					Cache:           oc.ovnNbCache,
+				}).Commit()
+			}
 
 			if !oc.portGroupSupport {
 				oc.deletePodAcls(existingPort)

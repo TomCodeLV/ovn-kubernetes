@@ -86,25 +86,28 @@ const (
 
 func DialNB() (*ovsdb.OVSDB, *dbcache.Cache) {
 	addr := strings.SplitN(config.OvnNorth.ClientAuth.OvnAddressForClient, ":", 2)
-	db, err := ovsdb.Dial(addr[0], addr[1])
-	if err != nil {
-		logrus.Errorf("Error connecting to NB database: %v", err)
-	}
 
-	// initialize cache
-	nbCache, err := db.Cache(ovsdb.Cache{
-		Schema: "OVN_Northbound",
-		Tables: map[string][]string{
-			"Logical_Switch":      {"_uuid", "name", "ports"},
-			"Logical_Switch_Port": {"_uuid", "name", "external_ids"},
-		},
-		Indexes: map[string][]string{
-			"Logical_Switch_Port": {"name"},
-		},
+	nbCache := new(dbcache.Cache)
+	db := ovsdb.Dial([][]string{{addr[0], addr[1]}}, func(db *ovsdb.OVSDB) error {
+		// initialize cache
+		tmpCache, err := db.Cache(ovsdb.Cache{
+			Schema: "OVN_Northbound",
+			Tables: map[string][]string{
+				"Logical_Switch":      {"_uuid", "name", "ports"},
+				"Logical_Switch_Port": {"_uuid", "name", "external_ids"},
+			},
+			Indexes: map[string][]string{
+				"Logical_Switch_Port": {"name"},
+			},
+		})
+		if err == nil {
+			*nbCache = *tmpCache
+			return nil
+		} else {
+			logrus.Errorf("Error in NB cache: %v", err)
+			return err
+		}
 	})
-	if err != nil {
-		logrus.Errorf("Error in NB cache: %v", err)
-	}
 
 	return db, nbCache
 }
@@ -112,7 +115,7 @@ func DialNB() (*ovsdb.OVSDB, *dbcache.Cache) {
 // NewOvnController creates a new OVN controller for creating logical network
 // infrastructure and policy
 func NewOvnController(kubeClient kubernetes.Interface, wf *factory.WatchFactory, nodePortEnable bool) *Controller {
-	db, cache := DialNB()
+	db, tmpCache := DialNB()
 	return &Controller{
 		kube:                     &kube.Kube{KClient: kubeClient},
 		watchFactory:             wf,
@@ -129,7 +132,7 @@ func NewOvnController(kubeClient kubernetes.Interface, wf *factory.WatchFactory,
 		loadbalancerClusterCache: make(map[string]string),
 		nodePortEnable:           nodePortEnable,
 		ovnNBDB:                  db,
-		ovnNbCache:               cache,
+		ovnNbCache:               tmpCache,
 	}
 }
 
