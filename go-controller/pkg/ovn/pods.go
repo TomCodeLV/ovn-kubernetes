@@ -25,7 +25,7 @@ func (oc *Controller) syncPods(pods []interface{}) {
 	}
 
 	var existingLogicalPorts []string
-	ports := (oc.ovnNbCache).GetMap("Logical_Switch_Port", "name")
+	ports := oc.ovnNbCache.GetMap("Logical_Switch_Port", "name")
 	for _, port := range ports {
 		if externalIds, ok := port.(map[string]interface{})["external_ids"]; ok {
 			if externalIds != nil {
@@ -38,7 +38,7 @@ func (oc *Controller) syncPods(pods []interface{}) {
 		}
 	}
 
-	switches := (oc.ovnNbCache).GetMap("Logical_Switch", "uuid")
+	switches := oc.ovnNbCache.GetMap("Logical_Switch", "uuid")
 	for _, existingPort := range existingLogicalPorts {
 		if _, ok := expectedLogicalPorts[existingPort]; !ok {
 			// not found, delete this logical port
@@ -75,46 +75,63 @@ func (oc *Controller) syncPods(pods []interface{}) {
 }
 
 func (oc *Controller) deletePodAcls(logicalPort string) {
-	// delete the ACL rules on OVN that corresponding pod has been deleted
-	uuids, stderr, err := util.RunOVNNbctlHA("--data=bare", "--no-heading",
-		"--columns=_uuid", "find", "ACL",
-		fmt.Sprintf("external_ids:logical_port=%s", logicalPort))
-	if err != nil {
-		logrus.Errorf("Error in getting list of acls "+
-			"stdout: %q, stderr: %q, error: %v", uuids, stderr, err)
-		return
+	acls := oc.ovnNbCache.GetMap("ACL", "uuid")
+	var aclUUIDs []string
+	for uuid, acl := range acls {
+		if externalIds, ok := acl.(map[string]interface{})["external_ids"]; ok {
+			if externalIds != nil {
+				if aclLogicalPort, ok := externalIds.(map[string]interface{})["logical_port"]; ok {
+					if aclLogicalPort == logicalPort {
+						aclUUIDs = append(aclUUIDs, uuid)
+					}
+				}
+			}
+		}
 	}
 
-	if uuids == "" {
+	if len(aclUUIDs) == 0 {
 		logrus.Debugf("deletePodAcls: returning because find " +
 			"returned no ACLs")
 		return
 	}
 
-	uuidSlice := strings.Fields(uuids)
-	for _, uuid := range uuidSlice {
+	for _, uuid := range aclUUIDs {
 		// Get logical switch
-		out, stderr, err := util.RunOVNNbctlHA("--data=bare",
-			"--no-heading", "--columns=_uuid", "find", "logical_switch",
-			fmt.Sprintf("acls{>=}%s", uuid))
-		if err != nil {
-			logrus.Errorf("find failed to get the logical_switch of acl "+
-				"uuid=%s, stderr: %q, (%v)", uuid, stderr, err)
+		switches := oc.ovnNbCache.GetMap("Logical_Switch", "uuid")
+		var logicalSwitch string
+		for swUUID, sw := range switches {
+			if acls, ok := sw.(map[string]interface{})["acls"]; ok {
+				if acls != nil {
+					for aclId, _ := range acls.(map[string]interface{}) {
+						if aclId == uuid {
+							logicalSwitch = swUUID
+							break
+						}
+					}
+				}
+			}
+
+			if logicalSwitch != "" {
+				break
+			}
+		}
+		if logicalSwitch == "" {
+			logrus.Errorf("failed to get the logical_switch of acl "+
+				"uuid=%s", uuid)
 			continue
 		}
 
-		if out == "" {
-			continue
-		}
-		logicalSwitch := out
-
-		_, stderr, err = util.RunOVNNbctlHA("--if-exists", "remove",
-			"logical_switch", logicalSwitch, "acls", uuid)
-		if err != nil {
-			logrus.Errorf("failed to delete the allow-from rule %s for"+
-				" logical_switch=%s, logical_port=%s, stderr: %q, (%v)",
-				uuid, logicalSwitch, logicalPort, stderr, err)
-			continue
+		// delete the ACL rules on OVN that corresponding pod has been deleted
+		var retry = true
+		for retry {
+			_, _, retry = (*oc.ovnNBDB).Transaction("OVN_Northbound").DeleteReferences(dbtransaction.DeleteReferences{
+				Table:           "Logical_Switch",
+				WhereId:         logicalSwitch,
+				ReferenceColumn: "acls",
+				DeleteIdsList:   []string{uuid},
+				Wait:            true,
+				Cache:           oc.ovnNbCache,
+			}).Commit()
 		}
 	}
 }

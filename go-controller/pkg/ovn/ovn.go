@@ -93,8 +93,9 @@ func DialNB() (*ovsdb.OVSDB, *dbcache.Cache) {
 		tmpCache, err := db.Cache(ovsdb.Cache{
 			Schema: "OVN_Northbound",
 			Tables: map[string][]string{
-				"Logical_Switch":      {"_uuid", "name", "ports"},
+				"Logical_Switch":      {"_uuid", "name", "ports", "acls"},
 				"Logical_Switch_Port": {"_uuid", "name", "external_ids"},
+				"ACL": {"_uuid", "external_ids"},
 			},
 			Indexes: map[string][]string{
 				"Logical_Switch_Port": {"name"},
