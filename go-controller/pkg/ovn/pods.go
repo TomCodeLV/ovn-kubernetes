@@ -158,24 +158,28 @@ func (oc *Controller) getLogicalPortUUID(logicalPort string) string {
 }
 
 func (oc *Controller) getGatewayFromSwitch(logicalSwitch string) (string, string, error) {
-	var gatewayIPMaskStr, stderr string
+	var gatewayIPMaskStr string
 	var ok bool
-	var err error
+
 	if gatewayIPMaskStr, ok = oc.gatewayCache[logicalSwitch]; !ok {
-		gatewayIPMaskStr, stderr, err = util.RunOVNNbctlHA("--if-exists",
-			"get", "logical_switch", logicalSwitch,
-			"external_ids:gateway_ip")
-		if err != nil {
-			logrus.Errorf("Failed to get gateway IP:  %s, stderr: %q, %v",
-				gatewayIPMaskStr, stderr, err)
-			return "", "", err
+		ls := oc.ovnNbCache.GetMap("Logical_Switch", "name", logicalSwitch)
+		if externalIds, ok := ls["external_ids"]; ok {
+			if externalIds != nil {
+				if gatewayIPMaskStr, ok = externalIds.(map[string]interface{})["gateway_ip"].(string); ok {
+					if gatewayIPMaskStr == "" {
+						return "", "", fmt.Errorf("Empty gateway IP in logical switch %s", logicalSwitch)
+					} else {
+						oc.gatewayCache[logicalSwitch] = gatewayIPMaskStr
+					}
+				}
+			}
 		}
 		if gatewayIPMaskStr == "" {
-			return "", "", fmt.Errorf("Empty gateway IP in logical switch %s",
-				logicalSwitch)
+			logrus.Errorf("Failed to get gateway")
+			return "", "", fmt.Errorf("No gateway IP")
 		}
-		oc.gatewayCache[logicalSwitch] = gatewayIPMaskStr
 	}
+
 	gatewayIPMask := strings.Split(gatewayIPMaskStr, "/")
 	gatewayIP := gatewayIPMask[0]
 	mask := gatewayIPMask[1]
