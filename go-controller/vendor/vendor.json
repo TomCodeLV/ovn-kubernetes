@@ -17,32 +17,32 @@
 		{
 			"checksumSHA1": "tzmr30cgJyoXXl6rBrCCcP6M06U=",
 			"path": "github.com/TomCodeLV/OVSDB-golang-lib/pkg/dbcache",
-			"revision": "002b96c2069058f34b0e36f95d5063dea534e3cc",
-			"revisionTime": "2018-10-30T11:04:55Z"
+			"revision": "ea8a0930532ff617da65b66173459c53c025f278",
+			"revisionTime": "2018-11-08T12:47:05Z"
 		},
 		{
 			"checksumSHA1": "N021bosKExU5IPE1AUTgGxNce+w=",
 			"path": "github.com/TomCodeLV/OVSDB-golang-lib/pkg/dbmonitor",
-			"revision": "002b96c2069058f34b0e36f95d5063dea534e3cc",
-			"revisionTime": "2018-10-30T11:04:55Z"
+			"revision": "ea8a0930532ff617da65b66173459c53c025f278",
+			"revisionTime": "2018-11-08T12:47:05Z"
 		},
 		{
-			"checksumSHA1": "LYytnQN1XoqqCM9peu5Pgq4gBqQ=",
+			"checksumSHA1": "vMQmoWz8an4y6j4ksnUOyr9RsGQ=",
 			"path": "github.com/TomCodeLV/OVSDB-golang-lib/pkg/dbtransaction",
-			"revision": "002b96c2069058f34b0e36f95d5063dea534e3cc",
-			"revisionTime": "2018-10-30T11:04:55Z"
+			"revision": "ea8a0930532ff617da65b66173459c53c025f278",
+			"revisionTime": "2018-11-08T12:47:05Z"
 		},
 		{
-			"checksumSHA1": "8UPQ8WsIW7mi09FuVQU5pQgQr1M=",
+			"checksumSHA1": "jqwPwu51oOIhRJaIW2JL+BsaKgU=",
 			"path": "github.com/TomCodeLV/OVSDB-golang-lib/pkg/helpers",
-			"revision": "002b96c2069058f34b0e36f95d5063dea534e3cc",
-			"revisionTime": "2018-10-30T11:04:55Z"
+			"revision": "ea8a0930532ff617da65b66173459c53c025f278",
+			"revisionTime": "2018-11-08T12:47:05Z"
 		},
 		{
 			"checksumSHA1": "qJTk6Pr5hbZRuAWkkIjnGL+Kv68=",
 			"path": "github.com/TomCodeLV/OVSDB-golang-lib/pkg/ovsdb",
-			"revision": "002b96c2069058f34b0e36f95d5063dea534e3cc",
-			"revisionTime": "2018-10-30T11:04:55Z"
+			"revision": "ea8a0930532ff617da65b66173459c53c025f278",
+			"revisionTime": "2018-11-08T12:47:05Z"
 		},
 		{
 			"checksumSHA1": "LvjTFR2Am01kquJNDnfISncPfRw=",
