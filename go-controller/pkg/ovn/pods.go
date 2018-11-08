@@ -323,7 +323,11 @@ func (oc *Controller) addLogicalPort(pod *kapi.Pod) {
 				Wait:            true,
 				Cache:           oc.ovnNbCache,
 			})
-			_, _, retry = txn.Commit()
+			_, err, retry = txn.Commit()
+		}
+		if err != nil {
+			logrus.Errorf("Failed to add dynamic logical port to switch (%v)", err)
+			return
 		}
 	}
 
@@ -337,17 +341,14 @@ func (oc *Controller) addLogicalPort(pod *kapi.Pod) {
 
 	count := 30
 	for count > 0 {
+		var addr interface{}
 		if isStaticIP {
-			out, stderr, err = util.RunOVNNbctlHA("get",
-				"logical_switch_port", portName, "addresses")
+			addr = oc.ovnNbCache.GetMap("Logical_Switch_Port", "name", portName)["addresses"]
 		} else {
-			addr := oc.ovnNbCache.GetMap("Logical_Switch_Port", "name", portName)["dynamic_addresses"]
-			if addr != nil {
-				out = addr.(string)
-				break
-			}
+			addr = oc.ovnNbCache.GetMap("Logical_Switch_Port", "name", portName)["dynamic_addresses"]
 		}
-		if err == nil && out != "[]" {
+		if addr != nil {
+			out = addr.(string)
 			break
 		}
 		time.Sleep(time.Second)
