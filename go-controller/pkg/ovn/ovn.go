@@ -94,7 +94,7 @@ func DialNB() (*ovsdb.OVSDB, *dbcache.Cache) {
 			Schema: "OVN_Northbound",
 			Tables: map[string][]string{
 				"Logical_Switch":      {"_uuid", "name", "ports", "acls", "external_ids"},
-				"Logical_Switch_Port": {"_uuid", "name", "external_ids"},
+				"Logical_Switch_Port": {"_uuid", "name", "external_ids", "dynamic_addresses"},
 				"ACL":                 {"_uuid", "external_ids"},
 			},
 			Indexes: map[string][]string{
