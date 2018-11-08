@@ -142,19 +142,13 @@ func (oc *Controller) getLogicalPortUUID(logicalPort string) string {
 		return oc.logicalPortUUIDCache[logicalPort]
 	}
 
-	out, stderr, err := util.RunOVNNbctlHA("--if-exists", "get",
-		"logical_switch_port", logicalPort, "_uuid")
-	if err != nil {
-		logrus.Errorf("Error while getting uuid for logical_switch_port "+
-			"%s, stderr: %q, err: %v", logicalPort, stderr, err)
+	uuid := oc.ovnNbCache.GetMap("Logical_Switch_Port", "name", logicalPort)["uuid"]
+
+	if uuid == nil {
 		return ""
 	}
 
-	if out == "" {
-		return out
-	}
-
-	oc.logicalPortUUIDCache[logicalPort] = out
+	oc.logicalPortUUIDCache[logicalPort] = uuid.(string)
 	return oc.logicalPortUUIDCache[logicalPort]
 }
 
