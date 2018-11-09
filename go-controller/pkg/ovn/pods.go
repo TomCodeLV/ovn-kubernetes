@@ -189,12 +189,36 @@ func (oc *Controller) deleteLogicalPort(pod *kapi.Pod) {
 
 	logrus.Infof("Deleting pod: %s", pod.Name)
 	logicalPort := fmt.Sprintf("%s_%s", pod.Namespace, pod.Name)
-	out, stderr, err := util.RunOVNNbctlHA("--if-exists", "lsp-del",
-		logicalPort)
-	if err != nil {
-		logrus.Errorf("Error in deleting pod logical port "+
-			"stdout: %q, stderr: %q, (%v)",
-			out, stderr, err)
+
+	portID := oc.ovnNbCache.GetMap("Logical_Switch_Port", "name", logicalPort)["uuid"]
+
+	if portID != nil {
+		// find corresponding switch
+		var switchId string
+		var err error
+		switches := oc.ovnNbCache.GetMap("Logical_Switch", "uuid")
+		for uuid, sw := range switches {
+			if _, ok := sw.(map[string]interface{})["ports"].(map[string]interface{})[portID.(string)]; ok {
+				switchId = uuid
+				break
+			}
+		}
+
+		retry := true
+		for retry {
+			_, err, retry = oc.ovnNBDB.Transaction("OVN_Northbound").DeleteReferences(dbtransaction.DeleteReferences{
+				Table:           "Logical_Switch",
+				WhereId:         switchId,
+				ReferenceColumn: "ports",
+				DeleteIdsList:   []string{portID.(string)},
+				Wait:            true,
+				Cache:           oc.ovnNbCache,
+			}).Commit()
+		}
+
+		if err != nil {
+			logrus.Errorf("Error in deleting pod logical port (%v)", err)
+		}
 	}
 
 	ipAddress := oc.getIPFromOvnAnnotation(pod.Annotations["ovn"])
