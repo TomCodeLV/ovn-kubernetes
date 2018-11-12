@@ -7,7 +7,6 @@ import (
 
 	"github.com/TomCodeLV/OVSDB-golang-lib/pkg/dbtransaction"
 	"github.com/TomCodeLV/OVSDB-golang-lib/pkg/helpers"
-	"github.com/openvswitch/ovn-kubernetes/go-controller/pkg/util"
 	"github.com/sirupsen/logrus"
 	kapi "k8s.io/api/core/v1"
 )
@@ -422,12 +421,49 @@ func (oc *Controller) AddLogicalPortWithIP(pod *kapi.Pod) {
 	ipAddress := oc.getIPFromOvnAnnotation(annotation)
 	macAddress := oc.getMacFromOvnAnnotation(annotation)
 
-	stdout, stderr, err := util.RunOVNNbctlHA("--", "--may-exist", "lsp-add",
-		logicalSwitch, portName, "--", "lsp-set-addresses", portName,
-		fmt.Sprintf("%s %s", macAddress, ipAddress))
+	switchId := oc.ovnNbCache.GetMap("Logical_Switch", "name", logicalSwitch)["uuid"].(string)
+
+	portId := oc.ovnNbCache.GetMap("Logical_Switch_Port", "name", portName)["uuid"]
+
+	var err error
+	if portId != nil {
+		retry := true
+		for retry {
+			txn := oc.ovnNBDB.Transaction("OVN_Northbound")
+			txn.Update(dbtransaction.Update{
+				Table: "Logical_Switch_Port",
+				Where: [][]interface{}{{"_uuid", "==", []string{"uuid", portId.(string)}}},
+				Row: map[string]interface{}{
+					"addresses": fmt.Sprintf("%s %s", macAddress, ipAddress),
+				},
+			})
+			_, err, retry = txn.Commit()
+		}
+	} else {
+		retry := true
+		for retry {
+			txn := oc.ovnNBDB.Transaction("OVN_Northbound")
+			newPortId := txn.Insert(dbtransaction.Insert{
+				Table: "Logical_Switch_Port",
+				Row: map[string]interface{}{
+					"name":      portName,
+					"addresses": fmt.Sprintf("%s %s", macAddress, ipAddress),
+				},
+			})
+			txn.InsertReferences(dbtransaction.InsertReferences{
+				Table:           "Logical_Switch",
+				WhereId:         switchId,
+				ReferenceColumn: "ports",
+				InsertIdsList:   []string{newPortId},
+				Wait:            true,
+				Cache:           oc.ovnNbCache,
+			})
+			_, err, retry = txn.Commit()
+		}
+	}
+
 	if err != nil {
-		logrus.Errorf("Failed to add logical port to switch, stdout: %q, "+
-			"stderr: %q, error: %v", stdout, stderr, err)
+		logrus.Errorf("Failed to add logical port to switch (%v)", err)
 		return
 	}
 }
